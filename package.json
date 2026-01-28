@@ -1,6 +1,6 @@
 {
   "name": "gsc-mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for Google Search Console - access search analytics, URL inspection, and sitemaps",
   "type": "module",
   "main": "dist/index.js",
