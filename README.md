@@ -1,26 +1,65 @@
 # Google Search Console MCP Server
 
-An MCP server that connects Claude (or any MCP client) to Google Search Console. Query your search analytics, check URL indexing status, and manage sitemaps through natural conversation.
+Connect Claude to your Google Search Console data. Query search analytics, check indexing status, and manage sitemaps through natural conversation.
 
-## Quick Start
+## Prerequisites
 
-### 1. Install and Setup
+- **Node.js 18+** installed
+- **Google Search Console** account with at least one verified property
+- **Claude Desktop** app installed
+
+## Installation
+
+### 1. Run Setup
 
 ```bash
 npx gsc-mcp-server --setup
 ```
 
-This opens a guided wizard that will:
-- Open Google Cloud Console for you to create OAuth credentials
-- Walk you through the setup steps
-- Authenticate with your Google account
+> ⚠️ **Note**: While our app is pending Google verification, you'll need to create your own Google OAuth credentials. This is a one-time setup that takes about 5 minutes.
+
+The setup wizard will:
+1. Open Google Cloud Console
+2. Guide you through creating OAuth credentials
+3. Authenticate with your Google account
+
+<details>
+<summary><strong>📋 Google Cloud Console Steps (click to expand)</strong></summary>
+
+1. **Create a project** at [console.cloud.google.com](https://console.cloud.google.com)
+
+2. **Enable the Search Console API**
+   - Go to APIs & Services → Library
+   - Search "Google Search Console API"
+   - Click Enable
+
+3. **Configure OAuth consent screen**
+   - Go to APIs & Services → OAuth consent screen
+   - User Type: External → Create
+   - Fill in app name and your email
+   - Save and continue through the steps
+
+4. **Add yourself as a test user**
+   - OAuth consent screen → Test users
+   - Add your Gmail address
+
+5. **Create OAuth credentials**
+   - Go to Credentials → Create Credentials → OAuth client ID
+   - Application type: Desktop app
+   - Click Create, then Download JSON
+
+6. **Drag the downloaded JSON file** into the terminal when prompted
+
+</details>
 
 ### 2. Add to Claude Desktop
 
-Add to your Claude Desktop config:
+Open your Claude Desktop config file:
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+Add the server configuration:
 
 ```json
 {
@@ -33,64 +72,66 @@ Add to your Claude Desktop config:
 }
 ```
 
-Restart Claude Desktop.
+If you already have other MCP servers, add it with a comma:
 
-### 3. Start Using It
+```json
+{
+  "mcpServers": {
+    "other-server": { ... },
+    "google-search-console": {
+      "command": "npx",
+      "args": ["-y", "gsc-mcp-server"]
+    }
+  }
+}
+```
 
-Ask Claude things like:
-- "What are my top search queries this month?"
-- "Is my new blog post indexed?"
-- "Show me pages with high impressions but low CTR"
-- "Submit my sitemap at https://example.com/sitemap.xml"
+### 3. Restart Claude Desktop
+
+Quit and reopen Claude Desktop to load the new server.
+
+## Usage
+
+Once configured, ask Claude things like:
+
+| What you want | Example prompt |
+|---------------|----------------|
+| Top search queries | "What are my top 10 search queries this month?" |
+| Page performance | "How is my /blog page performing in search?" |
+| Check indexing | "Is https://mysite.com/new-post indexed?" |
+| Compare periods | "Compare my search traffic this week vs last week" |
+| Find opportunities | "Show me queries with high impressions but low CTR" |
+| Manage sitemaps | "List my sitemaps" or "Submit my new sitemap" |
 
 ## Available Tools
 
 | Tool | Description |
 |------|-------------|
 | `gsc_list_sites` | List all your Search Console properties |
-| `gsc_search_analytics` | Query clicks, impressions, CTR, and position data |
+| `gsc_search_analytics` | Query clicks, impressions, CTR, and position |
 | `gsc_inspect_url` | Check if a URL is indexed |
 | `gsc_list_sitemaps` | List submitted sitemaps |
 | `gsc_get_sitemap` | Get sitemap details |
 | `gsc_submit_sitemap` | Submit a new sitemap |
 | `gsc_delete_sitemap` | Remove a sitemap |
 
-## Search Analytics Parameters
-
-The `gsc_search_analytics` tool supports:
-
-- **siteUrl**: Your site (e.g., `https://example.com/` or `sc-domain:example.com`)
-- **startDate / endDate**: Date range in YYYY-MM-DD format
-- **dimensions**: Group by `date`, `country`, `device`, `page`, `query`
-- **filters**: Filter by query, page, country, or device
-- **rowLimit**: Up to 25,000 rows per request
-
-## Configuration
-
-Credentials are stored in `~/.gsc-mcp-server/`:
-- `credentials.json` - Your OAuth credentials
-- `token.json` - Auth token (auto-refreshes)
-
 ## Troubleshooting
 
-**"Access blocked" during auth?**
-Add yourself as a test user in Google Cloud Console → OAuth consent screen → Test users.
+**"Access blocked" during sign-in?**
+→ Add yourself as a test user in Google Cloud Console → OAuth consent screen → Test users
 
 **"API not enabled" error?**
-Enable the Search Console API: [Enable here](https://console.cloud.google.com/apis/library/searchconsole.googleapis.com)
+→ Enable the [Search Console API](https://console.cloud.google.com/apis/library/searchconsole.googleapis.com)
 
 **"Permission denied" for a site?**
-Make sure your Google account has access to that Search Console property.
+→ Make sure your Google account has access to that property in Search Console
 
-## Development
+**Need to re-authenticate?**
+→ Run `npx gsc-mcp-server --setup` again
 
-```bash
-git clone https://github.com/sofianbettayeb/gsc-mcp-server.git
-cd gsc-mcp-server
-npm install
-npm run build
-npm run setup
-```
+## Privacy
+
+All data stays on your machine. See our [Privacy Policy](PRIVACY.md).
 
 ## License
 
