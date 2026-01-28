@@ -1,0 +1,56 @@
+{
+  "name": "gsc-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Google Search Console - access search analytics, URL inspection, and sitemaps",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "gsc-mcp-server": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "dev": "tsx src/index.ts",
+    "setup": "node dist/index.js --setup",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "google-search-console",
+    "gsc",
+    "seo",
+    "search-analytics",
+    "claude",
+    "ai"
+  ],
+  "author": "Sofian Bettayeb <sofianbettayeb@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "google-auth-library": "^9.0.0",
+    "googleapis": "^144.0.0",
+    "open": "^10.1.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sofianbettayeb/gsc-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sofianbettayeb/gsc-mcp-server/issues"
+  },
+  "homepage": "https://github.com/sofianbettayeb/gsc-mcp-server#readme"
+}

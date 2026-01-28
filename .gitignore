@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+.env
+.DS_Store
+
+# Config files with sensitive data (for development)
+.gsc-mcp-server/
