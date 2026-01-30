@@ -1,5 +1,7 @@
 # Google Search Console MCP Server
 
+<img width="459" height="209" alt="image" src="https://github.com/user-attachments/assets/d0cec128-c0b3-443c-a6e7-54b63e10db71" />
+
 Connect Claude to your Google Search Console data. Query search analytics, check indexing status, and manage sitemaps through natural conversation.
 
 ## Prerequisites
