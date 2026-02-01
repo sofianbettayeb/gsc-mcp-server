@@ -9,10 +9,7 @@ import {
 
 import {
   getAuthenticatedClient,
-  hasCredentials,
   hasToken,
-  getCredentialsPath,
-  getConfigDir,
 } from "./auth.js";
 import { GSCClient } from "./gsc-client.js";
 import { TOOL_DEFINITIONS, handleToolCall } from "./tools.js";
@@ -28,40 +25,16 @@ if (args.includes("--setup") || args.includes("setup")) {
 }
 
 async function startServer() {
-  // Check for credentials and token
-  if (!hasCredentials()) {
+  // Check for authentication
+  if (!hasToken()) {
     console.error(`
 ╔══════════════════════════════════════════════════════════════════╗
 ║  Google Search Console MCP Server - Setup Required               ║
 ╠══════════════════════════════════════════════════════════════════╣
-║  No Google OAuth credentials found.                              ║
-║                                                                  ║
-║  To set up the server:                                           ║
-║                                                                  ║
-║  1. Create OAuth credentials in Google Cloud Console:            ║
-║     https://console.cloud.google.com/apis/credentials            ║
-║                                                                  ║
-║  2. Download the credentials JSON file                           ║
-║                                                                  ║
-║  3. Save it to:                                                  ║
-║     ${getCredentialsPath().padEnd(50)}      ║
-║                                                                  ║
-║  4. Run: npx gsc-mcp-server --setup                              ║
-╚══════════════════════════════════════════════════════════════════╝
-`);
-    process.exit(1);
-  }
-
-  if (!hasToken()) {
-    console.error(`
-╔══════════════════════════════════════════════════════════════════╗
-║  Google Search Console MCP Server - Authentication Required      ║
-╠══════════════════════════════════════════════════════════════════╣
-║  Credentials found but not authenticated.                        ║
 ║                                                                  ║
 ║  Run: npx gsc-mcp-server --setup                                 ║
 ║                                                                  ║
-║  This will open a browser for Google OAuth authentication.       ║
+║  This will open a browser for you to sign in with Google.        ║
 ╚══════════════════════════════════════════════════════════════════╝
 `);
     process.exit(1);
@@ -70,7 +43,7 @@ async function startServer() {
   // Get authenticated client
   const auth = await getAuthenticatedClient();
   if (!auth) {
-    console.error("Failed to get authenticated client. Run --setup again.");
+    console.error("Session expired. Run: npx gsc-mcp-server --setup");
     process.exit(1);
   }
 

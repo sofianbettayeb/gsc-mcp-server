@@ -10,6 +10,13 @@ const SCOPES = [
   "https://www.googleapis.com/auth/webmasters",
 ];
 
+// Default OAuth credentials - users can authenticate directly without creating their own
+const DEFAULT_CREDENTIALS = {
+  client_id: "349293510875-bpesdfm0s1frkfakltovgqm7n9vq8vi6.apps.googleusercontent.com",
+  client_secret: "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",
+  redirect_uris: ["http://localhost:3000/oauth2callback"],
+};
+
 const CONFIG_DIR = path.join(
   process.env.HOME || process.env.USERPROFILE || ".",
   ".gsc-mcp-server"
@@ -46,6 +53,11 @@ export function getConfigDir(): string {
 }
 
 export function hasCredentials(): boolean {
+  // Always true since we have default credentials
+  return true;
+}
+
+export function hasCustomCredentials(): boolean {
   return fs.existsSync(CREDENTIALS_PATH);
 }
 
@@ -53,24 +65,26 @@ export function hasToken(): boolean {
   return fs.existsSync(TOKEN_PATH);
 }
 
-export function loadCredentials(): Credentials | null {
-  if (!hasCredentials()) {
-    return null;
-  }
-  try {
-    const content = fs.readFileSync(CREDENTIALS_PATH, "utf-8");
-    const data = JSON.parse(content);
-    // Support both formats: direct credentials or Google's downloaded format
-    if (data.installed) {
-      return data.installed;
+export function loadCredentials(): Credentials {
+  // Try to load user's custom credentials first
+  if (hasCustomCredentials()) {
+    try {
+      const content = fs.readFileSync(CREDENTIALS_PATH, "utf-8");
+      const data = JSON.parse(content);
+      // Support both formats: direct credentials or Google's downloaded format
+      if (data.installed) {
+        return data.installed;
+      }
+      if (data.web) {
+        return data.web;
+      }
+      return data;
+    } catch {
+      // Fall through to default credentials
     }
-    if (data.web) {
-      return data.web;
-    }
-    return data;
-  } catch {
-    return null;
   }
+  // Return default credentials
+  return DEFAULT_CREDENTIALS;
 }
 
 export function saveCredentials(credentials: Credentials): void {
@@ -138,13 +152,65 @@ export async function getAuthenticatedClient(): Promise<OAuth2Client | null> {
   return oauth2Client;
 }
 
+function errorPage(title: string, message: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Error - GSC MCP Server</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          }
+          .card {
+            background: white;
+            border-radius: 16px;
+            padding: 48px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 420px;
+          }
+          .icon {
+            width: 64px;
+            height: 64px;
+            background: #ef4444;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+          }
+          .icon svg { width: 32px; height: 32px; color: white; }
+          h1 { font-size: 24px; color: #1f2937; margin-bottom: 12px; }
+          p { color: #6b7280; line-height: 1.6; }
+          .hint { margin-top: 24px; font-size: 14px; color: #9ca3af; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="icon">
+            <svg fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </div>
+          <h1>${title}</h1>
+          <p>${message}</p>
+          <p class="hint">You can close this window.</p>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
 export async function authenticateInteractive(): Promise<OAuth2Client> {
   const credentials = loadCredentials();
-  if (!credentials) {
-    throw new Error(
-      `No credentials found. Please save your Google OAuth credentials to ${CREDENTIALS_PATH}`
-    );
-  }
 
   // Start local server to receive the callback
   const port = 3000;
@@ -167,32 +233,16 @@ export async function authenticateInteractive(): Promise<OAuth2Client> {
           const error = url.searchParams.get("error");
 
           if (error) {
-            res.writeHead(400, { "Content-Type": "text/html" });
-            res.end(`
-              <html>
-                <body style="font-family: system-ui; padding: 40px; text-align: center;">
-                  <h1>❌ Authentication Failed</h1>
-                  <p>Error: ${error}</p>
-                  <p>You can close this window.</p>
-                </body>
-              </html>
-            `);
+            res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+            res.end(errorPage("Authentication Failed", error));
             server.close();
             reject(new Error(`OAuth error: ${error}`));
             return;
           }
 
           if (!code) {
-            res.writeHead(400, { "Content-Type": "text/html" });
-            res.end(`
-              <html>
-                <body style="font-family: system-ui; padding: 40px; text-align: center;">
-                  <h1>❌ No Authorization Code</h1>
-                  <p>No authorization code received.</p>
-                  <p>You can close this window.</p>
-                </body>
-              </html>
-            `);
+            res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+            res.end(errorPage("No Authorization Code", "No authorization code was received from Google."));
             server.close();
             reject(new Error("No authorization code received"));
             return;
@@ -203,13 +253,58 @@ export async function authenticateInteractive(): Promise<OAuth2Client> {
           oauth2Client.setCredentials(tokens);
           saveToken(tokens as TokenData);
 
-          res.writeHead(200, { "Content-Type": "text/html" });
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
           res.end(`
+            <!DOCTYPE html>
             <html>
-              <body style="font-family: system-ui; padding: 40px; text-align: center;">
-                <h1>✅ Authentication Successful!</h1>
-                <p>Google Search Console MCP Server is now connected.</p>
-                <p>You can close this window and return to your terminal.</p>
+              <head>
+                <meta charset="utf-8">
+                <title>Connected - GSC MCP Server</title>
+                <style>
+                  * { margin: 0; padding: 0; box-sizing: border-box; }
+                  body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  }
+                  .card {
+                    background: white;
+                    border-radius: 16px;
+                    padding: 48px;
+                    text-align: center;
+                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+                    max-width: 420px;
+                  }
+                  .icon {
+                    width: 64px;
+                    height: 64px;
+                    background: #10b981;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 24px;
+                  }
+                  .icon svg { width: 32px; height: 32px; color: white; }
+                  h1 { font-size: 24px; color: #1f2937; margin-bottom: 12px; }
+                  p { color: #6b7280; line-height: 1.6; }
+                  .hint { margin-top: 24px; font-size: 14px; color: #9ca3af; }
+                </style>
+              </head>
+              <body>
+                <div class="card">
+                  <div class="icon">
+                    <svg fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                  </div>
+                  <h1>Authentication Successful!</h1>
+                  <p>Google Search Console MCP Server is now connected to your account.</p>
+                  <p class="hint">You can close this window and return to your terminal.</p>
+                </div>
               </body>
             </html>
           `);
@@ -221,16 +316,8 @@ export async function authenticateInteractive(): Promise<OAuth2Client> {
           res.end("Not found");
         }
       } catch (err) {
-        res.writeHead(500, { "Content-Type": "text/html" });
-        res.end(`
-          <html>
-            <body style="font-family: system-ui; padding: 40px; text-align: center;">
-              <h1>❌ Error</h1>
-              <p>${err instanceof Error ? err.message : "Unknown error"}</p>
-              <p>You can close this window.</p>
-            </body>
-          </html>
-        `);
+        res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(errorPage("Error", err instanceof Error ? err.message : "An unknown error occurred."));
         server.close();
         reject(err);
       }

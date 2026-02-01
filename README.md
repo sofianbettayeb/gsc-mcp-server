@@ -18,41 +18,7 @@ Connect Claude to your Google Search Console data. Query search analytics, check
 npx gsc-mcp-server --setup
 ```
 
-> ⚠️ **Note**: While our app is pending Google verification, you'll need to create your own Google OAuth credentials. This is a one-time setup that takes about 5 minutes.
-
-The setup wizard will:
-1. Open Google Cloud Console
-2. Guide you through creating OAuth credentials
-3. Authenticate with your Google account
-
-<details>
-<summary><strong>📋 Google Cloud Console Steps (click to expand)</strong></summary>
-
-1. **Create a project** at [console.cloud.google.com](https://console.cloud.google.com)
-
-2. **Enable the Search Console API**
-   - Go to APIs & Services → Library
-   - Search "Google Search Console API"
-   - Click Enable
-
-3. **Configure OAuth consent screen**
-   - Go to APIs & Services → OAuth consent screen
-   - User Type: External → Create
-   - Fill in app name and your email
-   - Save and continue through the steps
-
-4. **Add yourself as a test user**
-   - OAuth consent screen → Test users
-   - Add your Gmail address
-
-5. **Create OAuth credentials**
-   - Go to Credentials → Create Credentials → OAuth client ID
-   - Application type: Desktop app
-   - Click Create, then Download JSON
-
-6. **Drag the downloaded JSON file** into the terminal when prompted
-
-</details>
+This will open a browser for you to sign in with your Google account. That's it!
 
 ### 2. Add to Claude Desktop
 
@@ -119,17 +85,14 @@ Once configured, ask Claude things like:
 
 ## Troubleshooting
 
-**"Access blocked" during sign-in?**
-→ Add yourself as a test user in Google Cloud Console → OAuth consent screen → Test users
-
-**"API not enabled" error?**
-→ Enable the [Search Console API](https://console.cloud.google.com/apis/library/searchconsole.googleapis.com)
-
 **"Permission denied" for a site?**
 → Make sure your Google account has access to that property in Search Console
 
 **Need to re-authenticate?**
 → Run `npx gsc-mcp-server --setup` again
+
+**Session expired?**
+→ Run `npx gsc-mcp-server --setup` to sign in again
 
 ## Privacy
 
