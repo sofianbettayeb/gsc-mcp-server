@@ -94,6 +94,16 @@ Once configured, ask Claude things like:
 **Session expired?**
 → Run `npx gsc-mcp-server --setup` to sign in again
 
+## Using Your Own OAuth Credentials (Optional)
+
+The server works out of the box with shared OAuth credentials. For production use or higher rate limits, you can use your own:
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project and enable the **Search Console API**
+3. Create OAuth 2.0 credentials (Desktop app)
+4. Save credentials to `~/.gsc-mcp-server/credentials.json`
+5. Run `npx gsc-mcp-server --setup` to authenticate
+
 ## Privacy
 
 All data stays on your machine. See our [Privacy Policy](PRIVACY.md).
@@ -101,3 +111,13 @@ All data stays on your machine. See our [Privacy Policy](PRIVACY.md).
 ## License
 
 MIT
+
+## About Me
+
+I'm **Sofian Bettayeb**.
+
+By day, I'm a martech consultant, working with billion-dollar brands. By night, I build tools like **AI SEO Copilot** (15k+ installs), **AEO Copilot**, and blueprints like **Webflow SEO Checklist** (1k+ downloads) to help my Webflow friends make money with SEO and AEO.
+
+In between, I ride my bikes and play with my kids in Bern, Switzerland.
+
+[GitHub](https://github.com/sofianbettayeb)
