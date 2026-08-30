@@ -5,17 +5,15 @@ import * as path from "path";
 import * as http from "http";
 import open from "open";
 
-const SCOPES = [
+const FULL_SCOPES = [
   "https://www.googleapis.com/auth/webmasters.readonly",
   "https://www.googleapis.com/auth/webmasters",
 ];
+const READONLY_SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"];
 
-// Default OAuth credentials - users can authenticate directly without creating their own
-const DEFAULT_CREDENTIALS = {
-  client_id: "349293510875-bpesdfm0s1frkfakltovgqm7n9vq8vi6.apps.googleusercontent.com",
-  client_secret: "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",
-  redirect_uris: ["http://localhost:3000/oauth2callback"],
-};
+export function getScopes(): string[] {
+  return process.env.GSC_READ_ONLY === "true" ? READONLY_SCOPES : FULL_SCOPES;
+}
 
 const CONFIG_DIR = path.join(
   process.env.HOME || process.env.USERPROFILE || ".",
@@ -27,15 +25,15 @@ const CREDENTIALS_PATH = path.join(CONFIG_DIR, "credentials.json");
 interface Credentials {
   client_id: string;
   client_secret: string;
-  redirect_uris: string[];
+  redirect_uris?: string[];
 }
 
 interface TokenData {
-  access_token: string;
-  refresh_token: string;
-  scope: string;
-  token_type: string;
-  expiry_date: number;
+  access_token?: string;
+  refresh_token?: string;
+  scope?: string;
+  token_type?: string;
+  expiry_date?: number;
 }
 
 function ensureConfigDir(): void {
@@ -52,11 +50,6 @@ export function getConfigDir(): string {
   return CONFIG_DIR;
 }
 
-export function hasCredentials(): boolean {
-  // Always true since we have default credentials
-  return true;
-}
-
 export function hasCustomCredentials(): boolean {
   return fs.existsSync(CREDENTIALS_PATH);
 }
@@ -65,26 +58,40 @@ export function hasToken(): boolean {
   return fs.existsSync(TOKEN_PATH);
 }
 
-export function loadCredentials(): Credentials {
-  // Try to load user's custom credentials first
+/**
+ * Load an OAuth client id/secret for this deployment.
+ *
+ * Order of precedence:
+ *   1. GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET environment variables
+ *   2. ~/.gsc-mcp-server/credentials.json (a file you downloaded from
+ *      Google Cloud Console, "installed" or "web" format)
+ *
+ * There is no bundled fallback: every deployment must supply its own
+ * OAuth client.
+ */
+export function loadCredentials(): Credentials | null {
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    return {
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+    };
+  }
   if (hasCustomCredentials()) {
     try {
       const content = fs.readFileSync(CREDENTIALS_PATH, "utf-8");
       const data = JSON.parse(content);
-      // Support both formats: direct credentials or Google's downloaded format
-      if (data.installed) {
-        return data.installed;
-      }
-      if (data.web) {
-        return data.web;
-      }
+      if (data.installed) return data.installed;
+      if (data.web) return data.web;
       return data;
     } catch {
-      // Fall through to default credentials
+      return null;
     }
   }
-  // Return default credentials
-  return DEFAULT_CREDENTIALS;
+  return null;
+}
+
+export function hasCredentials(): boolean {
+  return loadCredentials() !== null;
 }
 
 export function saveCredentials(credentials: Credentials): void {
@@ -121,7 +128,96 @@ export function createOAuth2Client(credentials: Credentials): OAuth2Client {
   );
 }
 
+function parseServiceAccountKey(raw: string): {
+  client_email: string;
+  private_key: string;
+} | null {
+  const tryParse = (s: string) => {
+    try {
+      const data = JSON.parse(s);
+      if (data.client_email && data.private_key) return data;
+    } catch {
+      // not JSON
+    }
+    return null;
+  };
+  // Accept raw JSON or base64-encoded JSON (easier to store in some hosts)
+  return (
+    tryParse(raw) || tryParse(Buffer.from(raw, "base64").toString("utf-8"))
+  );
+}
+
+/**
+ * Build an authenticated Google client purely from environment variables.
+ * Used by the remote HTTP server, and preferred by the stdio server too.
+ *
+ * Supported configurations:
+ *   1. Service account:
+ *      GOOGLE_SERVICE_ACCOUNT_KEY      full key JSON (or base64 of it)
+ *      GOOGLE_SERVICE_ACCOUNT_KEY_FILE path to the key JSON file
+ *      (add the service account's email to your GSC properties)
+ *   2. OAuth client + refresh token:
+ *      GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
+ *
+ * Set GSC_READ_ONLY=true to restrict the service account to the
+ * read-only Search Console scope.
+ *
+ * Returns null if neither configuration is present.
+ */
+export function getAuthFromEnv(): OAuth2Client | null {
+  let keyRaw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!keyRaw && process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE) {
+    try {
+      keyRaw = fs.readFileSync(
+        process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE,
+        "utf-8"
+      );
+    } catch {
+      throw new Error(
+        `Could not read GOOGLE_SERVICE_ACCOUNT_KEY_FILE: ${process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE}`
+      );
+    }
+  }
+  if (keyRaw) {
+    const key = parseServiceAccountKey(keyRaw);
+    if (!key) {
+      throw new Error(
+        "GOOGLE_SERVICE_ACCOUNT_KEY is set but is not valid service account JSON (raw or base64)."
+      );
+    }
+    // JWT extends OAuth2Client, so downstream code is unchanged
+    return new google.auth.JWT({
+      email: key.client_email,
+      key: key.private_key,
+      scopes: getScopes(),
+    });
+  }
+
+  const {
+    GOOGLE_CLIENT_ID: clientId,
+    GOOGLE_CLIENT_SECRET: clientSecret,
+    GOOGLE_REFRESH_TOKEN: refreshToken,
+  } = process.env;
+  if (clientId && clientSecret && refreshToken) {
+    const client = new google.auth.OAuth2(clientId, clientSecret);
+    client.setCredentials({ refresh_token: refreshToken });
+    return client;
+  }
+
+  return null;
+}
+
+/**
+ * Get an authenticated client for the stdio (local) server.
+ * Environment-based credentials win; otherwise fall back to the token
+ * saved by `npx gsc-mcp-server --setup`.
+ */
 export async function getAuthenticatedClient(): Promise<OAuth2Client | null> {
+  const envClient = getAuthFromEnv();
+  if (envClient) {
+    return envClient;
+  }
+
   const credentials = loadCredentials();
   if (!credentials) {
     return null;
@@ -211,6 +307,13 @@ function errorPage(title: string, message: string): string {
 
 export async function authenticateInteractive(): Promise<OAuth2Client> {
   const credentials = loadCredentials();
+  if (!credentials) {
+    throw new Error(
+      "No OAuth client configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, " +
+        `or save your Google Cloud OAuth client JSON to ${CREDENTIALS_PATH}. ` +
+        "See the README for how to create one."
+    );
+  }
 
   // Start local server to receive the callback
   const port = 3000;
@@ -326,11 +429,11 @@ export async function authenticateInteractive(): Promise<OAuth2Client> {
     server.listen(port, () => {
       const authUrl = oauth2Client.generateAuthUrl({
         access_type: "offline",
-        scope: SCOPES,
+        scope: getScopes(),
         prompt: "consent",
       });
 
-      console.log("\n🔐 Opening browser for Google authentication...\n");
+      console.log("\nOpening browser for Google authentication...\n");
       console.log("If the browser doesn't open, visit this URL manually:");
       console.log(`\n${authUrl}\n`);
 

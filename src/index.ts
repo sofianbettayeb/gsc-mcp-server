@@ -1,18 +1,10 @@
 #!/usr/bin/env node
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
 
-import {
-  getAuthenticatedClient,
-  hasToken,
-} from "./auth.js";
+import { getAuthenticatedClient, hasCredentials } from "./auth.js";
 import { GSCClient } from "./gsc-client.js";
-import { TOOL_DEFINITIONS, handleToolCall } from "./tools.js";
+import { createMcpServer } from "./server.js";
 
 // Check if this is a setup command
 const args = process.argv.slice(2);
@@ -25,55 +17,34 @@ if (args.includes("--setup") || args.includes("setup")) {
 }
 
 async function startServer() {
-  // Check for authentication
-  if (!hasToken()) {
+  if (!hasCredentials()) {
     console.error(`
-╔══════════════════════════════════════════════════════════════════╗
-║  Google Search Console MCP Server - Setup Required               ║
-╠══════════════════════════════════════════════════════════════════╣
-║                                                                  ║
-║  Run: npx gsc-mcp-server --setup                                 ║
-║                                                                  ║
-║  This will open a browser for you to sign in with Google.        ║
-╚══════════════════════════════════════════════════════════════════╝
+Google Search Console MCP Server - OAuth client required
+
+This server no longer ships with shared OAuth credentials. Create your
+own OAuth client in Google Cloud Console (enable the Search Console
+API), then either:
+
+  1. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment
+     variables, or
+  2. Save the downloaded client JSON to ~/.gsc-mcp-server/credentials.json
+
+Then run: npx gsc-mcp-server --setup
+
+See https://github.com/sofianbettayeb/gsc-mcp-server#readme
 `);
     process.exit(1);
   }
 
-  // Get authenticated client
+  // Get authenticated client (env credentials first, then saved token)
   const auth = await getAuthenticatedClient();
   if (!auth) {
-    console.error("Session expired. Run: npx gsc-mcp-server --setup");
+    console.error("Not authenticated or session expired. Run: npx gsc-mcp-server --setup");
     process.exit(1);
   }
 
   const gscClient = new GSCClient(auth);
-
-  // Create MCP server
-  const server = new Server(
-    {
-      name: "gsc-mcp-server",
-      version: "1.0.0",
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
-  );
-
-  // Handle list tools request
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: TOOL_DEFINITIONS,
-    };
-  });
-
-  // Handle tool calls
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
-    return handleToolCall(gscClient, name, args || {});
-  });
+  const server = createMcpServer(gscClient);
 
   // Connect to stdio transport
   const transport = new StdioServerTransport();
