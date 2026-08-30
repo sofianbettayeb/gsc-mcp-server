@@ -1,0 +1,12 @@
+modules = ["nodejs-22"]
+run = "npm start"
+entrypoint = "src/http.ts"
+
+[deployment]
+build = ["sh", "-c", "npm ci && npm run build"]
+run = ["sh", "-c", "node dist/http.js"]
+deploymentTarget = "autoscale"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
