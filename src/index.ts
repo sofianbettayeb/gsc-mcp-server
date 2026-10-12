@@ -17,7 +17,7 @@ if (args.includes("--setup") || args.includes("setup")) {
 }
 
 async function startServer() {
-  if (!hasCredentials()) {
+  if (!hasCredentials() && !process.env.GOOGLE_SERVICE_ACCOUNT_KEY && !process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE) {
     console.error(`
 Google Search Console MCP Server - OAuth client required
 
